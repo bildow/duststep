@@ -67,7 +67,8 @@ public class StepService extends Service implements SensorEventListener {
         }
         NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
         nm.notify(NOTIFICATION_ID, notification(steps));
-        sendBroadcast(new Intent(ACTION_UPDATE).putExtra("steps", steps));
+        // Keep dynamic activity receivers inside this app; the visible activity also polls while resumed.
+        sendBroadcast(new Intent(ACTION_UPDATE).setPackage(getPackageName()).putExtra("steps", steps));
     }
 
     @Override

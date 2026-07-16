@@ -6,7 +6,9 @@ SDK="${ANDROID_HOME:-$HOME/Android/Sdk}"
 BUILD_TOOLS="$SDK/build-tools/34.0.0"
 PLATFORM="$SDK/platforms/android-35/android.jar"
 JAVA_HOME="${JAVA_HOME:-/usr/lib/jvm/java-17-openjdk-amd64}"
-KEYSTORE="$ROOT/build/debug.keystore"
+# Keep the app's debug signing identity outside the disposable build directory so USB updates remain
+# installable after a clean build. Override with DUSTSTEP_KEYSTORE for a release signing workflow.
+KEYSTORE="${DUSTSTEP_KEYSTORE:-$HOME/.android/duststep-debug.keystore}"
 
 rm -rf "$ROOT/build"
 mkdir -p "$ROOT/build/compiled" "$ROOT/build/generated" "$ROOT/build/classes" "$ROOT/build/dex"
@@ -39,6 +41,7 @@ cp "$ROOT/build/duststep-unsigned.apk" "$ROOT/build/duststep-with-dex.apk"
 "$BUILD_TOOLS/zipalign" -f 4 "$ROOT/build/duststep-with-dex.apk" "$ROOT/build/duststep-aligned.apk"
 
 if [ ! -f "$KEYSTORE" ]; then
+  mkdir -p "$(dirname "$KEYSTORE")"
   "$JAVA_HOME/bin/keytool" -genkeypair -v \
     -keystore "$KEYSTORE" \
     -storepass android \

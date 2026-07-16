@@ -13,9 +13,12 @@ import android.hardware.Sensor;
 import android.hardware.SensorManager;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.view.Gravity;
 import android.widget.Button;
 import android.widget.LinearLayout;
+import android.widget.ScrollView;
 import android.widget.TextView;
 
 public class MainActivity extends Activity {
@@ -30,8 +33,19 @@ public class MainActivity extends Activity {
 
     private TextView steps;
     private TextView weekly;
+    private TextView history;
     private TextView status;
     private Button toggle;
+    private final Handler refreshHandler = new Handler(Looper.getMainLooper());
+    private boolean receiverRegistered;
+
+    private final Runnable liveRefresh = new Runnable() {
+        @Override
+        public void run() {
+            refresh();
+            refreshHandler.postDelayed(this, 1000);
+        }
+    };
 
     private final BroadcastReceiver receiver = new BroadcastReceiver() {
         @Override
@@ -55,22 +69,29 @@ public class MainActivity extends Activity {
         } else {
             registerReceiver(receiver, new IntentFilter(StepService.ACTION_UPDATE));
         }
-        refresh();
+        receiverRegistered = true;
+        liveRefresh.run();
     }
 
     @Override
     protected void onPause() {
-        unregisterReceiver(receiver);
+        refreshHandler.removeCallbacks(liveRefresh);
+        if (receiverRegistered) {
+            unregisterReceiver(receiver);
+            receiverRegistered = false;
+        }
         super.onPause();
     }
 
     private void buildUi() {
         int pad = dp(20);
+        ScrollView scroll = new ScrollView(this);
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
         root.setGravity(Gravity.CENTER_HORIZONTAL);
         root.setPadding(pad, pad * 2, pad, pad);
         root.setBackgroundColor(BG);
+        scroll.setBackgroundColor(BG);
 
         TextView title = text("DustStep", 34, ACCENT, true);
         TextView subtitle = text("No ads. No login. No internet.", 15, DIM, false);
@@ -80,8 +101,23 @@ public class MainActivity extends Activity {
         TextView label = text("steps today", 16, DIM, false);
         label.setPadding(0, 0, 0, dp(10));
 
-        weekly = text("7-day average: 0", 17, GREEN, true);
+        weekly = text("This week: 0 steps/day", 17, GREEN, true);
         weekly.setPadding(0, 0, 0, dp(18));
+
+        history = text("", 15, DIM, false);
+        history.setGravity(Gravity.START);
+        history.setPadding(dp(14), dp(12), dp(14), dp(12));
+        GradientDrawable historyPanel = new GradientDrawable();
+        historyPanel.setColor(PANEL);
+        historyPanel.setStroke(dp(1), BORDER);
+        historyPanel.setCornerRadius(dp(10));
+        history.setBackground(historyPanel);
+        LinearLayout.LayoutParams historyParams = new LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        );
+        historyParams.setMargins(0, 0, 0, dp(18));
+        history.setLayoutParams(historyParams);
 
         status = text("", 14, DIM, false);
         status.setGravity(Gravity.CENTER);
@@ -104,10 +140,12 @@ public class MainActivity extends Activity {
         root.addView(steps);
         root.addView(label);
         root.addView(weekly);
+        root.addView(history);
         root.addView(status);
         root.addView(toggle);
         root.addView(reset);
-        setContentView(root);
+        scroll.addView(root);
+        setContentView(scroll);
     }
 
     private TextView text(String s, int sp, int color, boolean bold) {
@@ -172,7 +210,10 @@ public class MainActivity extends Activity {
 
     private void refresh() {
         steps.setText(String.valueOf(StepStore.stepsToday(this)));
-        weekly.setText("7-day average: " + StepStore.weeklyAverage(this));
+        int days = StepStore.weekDaysSoFar();
+        weekly.setText("This week: " + StepStore.weeklyAverage(this) + " steps/day (" + days + " "
+            + (days == 1 ? "day" : "days") + ")");
+        history.setText(StepStore.recentHistory(this));
         boolean tracking = StepStore.isTracking(this);
         toggle.setText(tracking ? "Stop tracking" : "Start tracking");
         toggle.setBackground(buttonBackground(tracking));

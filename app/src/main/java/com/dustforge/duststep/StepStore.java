@@ -47,15 +47,37 @@ final class StepStore {
     static int weeklyAverage(Context context) {
         ensureToday(context);
         SharedPreferences p = prefs(context);
-        Calendar cal = Calendar.getInstance();
-        cal.add(Calendar.HOUR_OF_DAY, -4);
+        Calendar cal = trackingCalendar();
+        int days = weekDaysSoFar();
+        cal.add(Calendar.DAY_OF_YEAR, -(days - 1));
         int total = 0;
-        for (int i = 0; i < 7; i++) {
+        for (int i = 0; i < days; i++) {
             String day = new SimpleDateFormat("yyyy-MM-dd", Locale.US).format(cal.getTime());
             total += day.equals(today()) ? p.getInt(KEY_STEPS, 0) : p.getInt(HISTORY_PREFIX + day, 0);
             cal.add(Calendar.DAY_OF_YEAR, -1);
         }
-        return Math.round(total / 7f);
+        return Math.round(total / (float) days);
+    }
+
+    static int weekDaysSoFar() {
+        int dayOfWeek = trackingCalendar().get(Calendar.DAY_OF_WEEK);
+        // Calendar.MONDAY is 2. Monday is day one; Sunday is day seven.
+        return ((dayOfWeek + 5) % 7) + 1;
+    }
+
+    static String recentHistory(Context context) {
+        ensureToday(context);
+        SharedPreferences p = prefs(context);
+        Calendar cal = trackingCalendar();
+        StringBuilder out = new StringBuilder("Recent days");
+        SimpleDateFormat label = new SimpleDateFormat("EEE, MMM d", Locale.US);
+        for (int i = 0; i < 7; i++) {
+            String day = new SimpleDateFormat("yyyy-MM-dd", Locale.US).format(cal.getTime());
+            int count = day.equals(today()) ? p.getInt(KEY_STEPS, 0) : p.getInt(HISTORY_PREFIX + day, 0);
+            out.append("\n").append(label.format(cal.getTime())).append(": ").append(count);
+            cal.add(Calendar.DAY_OF_YEAR, -1);
+        }
+        return out.toString();
     }
 
     static void resetToday(Context context) {
@@ -107,5 +129,11 @@ final class StepStore {
     private static void archiveStoredDay(SharedPreferences p, String storedDay) {
         if (storedDay == null || storedDay.isEmpty()) return;
         p.edit().putInt(HISTORY_PREFIX + storedDay, p.getInt(KEY_STEPS, 0)).apply();
+    }
+
+    private static Calendar trackingCalendar() {
+        Calendar cal = Calendar.getInstance();
+        cal.add(Calendar.HOUR_OF_DAY, -4);
+        return cal;
     }
 }
