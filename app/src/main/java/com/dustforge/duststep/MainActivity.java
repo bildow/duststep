@@ -32,6 +32,7 @@ public class MainActivity extends Activity {
     private static final int GREEN = Color.rgb(105, 199, 177);
 
     private TextView steps;
+    private TextView distance;
     private TextView weekly;
     private TextView history;
     private TextView status;
@@ -99,7 +100,10 @@ public class MainActivity extends Activity {
 
         steps = text("0", 76, TEXT, true);
         TextView label = text("steps today", 16, DIM, false);
-        label.setPadding(0, 0, 0, dp(10));
+        label.setPadding(0, 0, 0, dp(2));
+
+        distance = text("~0.0 miles today (estimated)", 15, DIM, false);
+        distance.setPadding(0, 0, 0, dp(10));
 
         weekly = text("This week: 0 steps/day", 17, GREEN, true);
         weekly.setPadding(0, 0, 0, dp(18));
@@ -139,6 +143,7 @@ public class MainActivity extends Activity {
         root.addView(subtitle);
         root.addView(steps);
         root.addView(label);
+        root.addView(distance);
         root.addView(weekly);
         root.addView(history);
         root.addView(status);
@@ -209,7 +214,9 @@ public class MainActivity extends Activity {
     }
 
     private void refresh() {
-        steps.setText(String.valueOf(StepStore.stepsToday(this)));
+        int todaySteps = StepStore.stepsToday(this);
+        steps.setText(String.valueOf(todaySteps));
+        distance.setText("~" + StepStore.estimatedMiles(todaySteps) + " miles today (estimated)");
         int days = StepStore.weekDaysSoFar();
         weekly.setText("This week: " + StepStore.weeklyAverage(this) + " steps/day (" + days + " "
             + (days == 1 ? "day" : "days") + ")");

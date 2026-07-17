@@ -14,6 +14,8 @@ final class StepStore {
     private static final String KEY_BASELINE = "baseline";
     private static final String KEY_STEPS = "steps";
     private static final String HISTORY_PREFIX = "history_";
+    // Estimated walking stride for a 6'9" person: 0.415 x height, about 1,885 steps/mile.
+    private static final float STEPS_PER_MILE = 1885f;
 
     private StepStore() {}
 
@@ -54,9 +56,13 @@ final class StepStore {
         for (int i = 0; i < days; i++) {
             String day = new SimpleDateFormat("yyyy-MM-dd", Locale.US).format(cal.getTime());
             total += day.equals(today()) ? p.getInt(KEY_STEPS, 0) : p.getInt(HISTORY_PREFIX + day, 0);
-            cal.add(Calendar.DAY_OF_YEAR, -1);
+            cal.add(Calendar.DAY_OF_YEAR, 1);
         }
         return Math.round(total / (float) days);
+    }
+
+    static String estimatedMiles(int steps) {
+        return String.format(Locale.US, "%.1f", steps / STEPS_PER_MILE);
     }
 
     static int weekDaysSoFar() {
