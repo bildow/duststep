@@ -102,11 +102,27 @@ final class StepStore {
         String today = today();
         String storedDay = p.getString(KEY_DAY, "");
         float baseline = p.getFloat(KEY_BASELINE, -1f);
-        if (!today.equals(storedDay) || baseline < 0f || cumulativeSteps < baseline) {
+        if (!today.equals(storedDay)) {
             archiveStoredDay(p, storedDay);
             baseline = cumulativeSteps;
             p.edit().putString(KEY_DAY, today).putFloat(KEY_BASELINE, baseline).putInt(KEY_STEPS, 0).apply();
             return 0;
+        }
+
+        int recordedSteps = p.getInt(KEY_STEPS, 0);
+        if (baseline < 0f) {
+            // The first event after a day rollover establishes a fresh baseline.
+            baseline = cumulativeSteps;
+            p.edit().putFloat(KEY_BASELINE, baseline).putInt(KEY_STEPS, 0).apply();
+            return 0;
+        }
+
+        if (cumulativeSteps < baseline) {
+            // TYPE_STEP_COUNTER resets when Android restarts. Preserve the steps
+            // already recorded for this tracking day and offset the new counter
+            // so subsequent events continue from that total instead of erasing it.
+            baseline = cumulativeSteps - recordedSteps;
+            p.edit().putFloat(KEY_BASELINE, baseline).apply();
         }
         int steps = Math.max(0, Math.round(cumulativeSteps - baseline));
         p.edit().putInt(KEY_STEPS, steps).putInt(HISTORY_PREFIX + today, steps).apply();
