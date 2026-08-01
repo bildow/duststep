@@ -22,6 +22,7 @@ import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
+import android.widget.Toast;
 
 public class MainActivity extends Activity {
     private static final int BG = Color.rgb(12, 15, 18);
@@ -141,8 +142,8 @@ public class MainActivity extends Activity {
             refresh();
         });
 
-        Button adjust = button("Adjust today");
-        adjust.setOnClickListener(v -> showAdjustToday());
+        Button adjust = button("Adjust a day");
+        adjust.setOnClickListener(v -> showAdjustDay());
 
         root.addView(title);
         root.addView(subtitle);
@@ -219,28 +220,42 @@ public class MainActivity extends Activity {
         refresh();
     }
 
-    private void showAdjustToday() {
+    private void showAdjustDay() {
+        android.widget.EditText dayInput = new android.widget.EditText(this);
+        dayInput.setHint("YYYY-MM-DD");
+        dayInput.setText(StepStore.today());
+
         android.widget.EditText input = new android.widget.EditText(this);
         input.setInputType(InputType.TYPE_CLASS_NUMBER);
         input.setText(String.valueOf(StepStore.stepsToday(this)));
         input.setSelectAllOnFocus(true);
         int pad = dp(20);
         LinearLayout container = new LinearLayout(this);
+        container.setOrientation(LinearLayout.VERTICAL);
         container.setPadding(pad, 0, pad, 0);
+        container.addView(dayInput, new LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        ));
         container.addView(input, new LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.MATCH_PARENT,
             LinearLayout.LayoutParams.WRAP_CONTENT
         ));
         new AlertDialog.Builder(this)
-            .setTitle("Adjust today's steps")
+            .setTitle("Adjust a day's steps")
             .setView(container)
             .setNegativeButton("Cancel", null)
             .setPositiveButton("Save", (dialog, which) -> {
                 try {
-                    StepStore.setStepsToday(this, Integer.parseInt(input.getText().toString()));
+                    String day = dayInput.getText().toString().trim();
+                    if (!day.matches("\\d{4}-\\d{2}-\\d{2}")) {
+                        Toast.makeText(this, "Use YYYY-MM-DD", Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+                    StepStore.setHistoricalSteps(this, day, Integer.parseInt(input.getText().toString()));
                     refresh();
                 } catch (NumberFormatException ignored) {
-                    // Leave the existing total unchanged for an empty or invalid entry.
+                    Toast.makeText(this, "Enter a whole-number step total", Toast.LENGTH_SHORT).show();
                 }
             })
             .show();

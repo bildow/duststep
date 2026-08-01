@@ -47,7 +47,7 @@ final class StepStore {
         prefs(context).edit().putBoolean(KEY_REBASE_ON_NEXT_COUNTER, true).apply();
     }
 
-    static int stepsToday(Context context) {
+    static synchronized int stepsToday(Context context) {
         ensureToday(context);
         return prefs(context).getInt(KEY_STEPS, 0);
     }
@@ -92,7 +92,7 @@ final class StepStore {
         return out.toString();
     }
 
-    static void resetToday(Context context) {
+    static synchronized void resetToday(Context context) {
         SharedPreferences p = prefs(context);
         String today = today();
         float baseline = p.getFloat(KEY_BASELINE, -1f);
@@ -111,7 +111,7 @@ final class StepStore {
             .apply();
     }
 
-    static void setStepsToday(Context context, int steps) {
+    static synchronized void setStepsToday(Context context, int steps) {
         ensureToday(context);
         SharedPreferences p = prefs(context);
         String today = today();
@@ -128,7 +128,15 @@ final class StepStore {
             .apply();
     }
 
-    static int applyStepCounter(Context context, float cumulativeSteps) {
+    static synchronized void setHistoricalSteps(Context context, String day, int steps) {
+        if (today().equals(day)) {
+            setStepsToday(context, steps);
+            return;
+        }
+        prefs(context).edit().putInt(HISTORY_PREFIX + day, Math.max(0, steps)).apply();
+    }
+
+    static synchronized int applyStepCounter(Context context, float cumulativeSteps) {
         SharedPreferences p = prefs(context);
         String today = today();
         String storedDay = p.getString(KEY_DAY, "");
@@ -180,7 +188,7 @@ final class StepStore {
         return steps;
     }
 
-    static int applyStepDetector(Context context) {
+    static synchronized int applyStepDetector(Context context) {
         ensureToday(context);
         SharedPreferences p = prefs(context);
         String today = today();
@@ -189,7 +197,7 @@ final class StepStore {
         return steps;
     }
 
-    private static void ensureToday(Context context) {
+    private static synchronized void ensureToday(Context context) {
         SharedPreferences p = prefs(context);
         String today = today();
         String storedDay = p.getString(KEY_DAY, "");
