@@ -111,6 +111,23 @@ final class StepStore {
             .apply();
     }
 
+    static void setStepsToday(Context context, int steps) {
+        ensureToday(context);
+        SharedPreferences p = prefs(context);
+        String today = today();
+        int total = Math.max(0, steps);
+        float baseline = p.getFloat(KEY_BASELINE, -1f);
+        float lastCounter = p.getFloat(KEY_LAST_COUNTER, -1f);
+        if (lastCounter >= 0f) {
+            baseline = lastCounter - total;
+        }
+        p.edit()
+            .putFloat(KEY_BASELINE, baseline)
+            .putInt(KEY_STEPS, total)
+            .putInt(HISTORY_PREFIX + today, total)
+            .apply();
+    }
+
     static int applyStepCounter(Context context, float cumulativeSteps) {
         SharedPreferences p = prefs(context);
         String today = today();

@@ -2,6 +2,7 @@ package com.dustforge.duststep;
 
 import android.Manifest;
 import android.app.Activity;
+import android.app.AlertDialog;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
@@ -15,6 +16,7 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.text.InputType;
 import android.view.Gravity;
 import android.widget.Button;
 import android.widget.LinearLayout;
@@ -139,6 +141,9 @@ public class MainActivity extends Activity {
             refresh();
         });
 
+        Button adjust = button("Adjust today");
+        adjust.setOnClickListener(v -> showAdjustToday());
+
         root.addView(title);
         root.addView(subtitle);
         root.addView(steps);
@@ -148,6 +153,7 @@ public class MainActivity extends Activity {
         root.addView(history);
         root.addView(status);
         root.addView(toggle);
+        root.addView(adjust);
         root.addView(reset);
         scroll.addView(root);
         setContentView(scroll);
@@ -211,6 +217,33 @@ public class MainActivity extends Activity {
         startService(i);
         StepStore.setTracking(this, false);
         refresh();
+    }
+
+    private void showAdjustToday() {
+        android.widget.EditText input = new android.widget.EditText(this);
+        input.setInputType(InputType.TYPE_CLASS_NUMBER);
+        input.setText(String.valueOf(StepStore.stepsToday(this)));
+        input.setSelectAllOnFocus(true);
+        int pad = dp(20);
+        LinearLayout container = new LinearLayout(this);
+        container.setPadding(pad, 0, pad, 0);
+        container.addView(input, new LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        ));
+        new AlertDialog.Builder(this)
+            .setTitle("Adjust today's steps")
+            .setView(container)
+            .setNegativeButton("Cancel", null)
+            .setPositiveButton("Save", (dialog, which) -> {
+                try {
+                    StepStore.setStepsToday(this, Integer.parseInt(input.getText().toString()));
+                    refresh();
+                } catch (NumberFormatException ignored) {
+                    // Leave the existing total unchanged for an empty or invalid entry.
+                }
+            })
+            .show();
     }
 
     private void refresh() {
