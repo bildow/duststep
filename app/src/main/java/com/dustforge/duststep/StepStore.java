@@ -12,6 +12,8 @@ final class StepStore {
     private static final String KEY_TRACKING = "tracking";
     private static final String KEY_DAY = "day";
     private static final String KEY_BASELINE = "baseline";
+    private static final String KEY_LAST_COUNTER = "last_counter";
+    private static final String KEY_REBASE_ON_NEXT_COUNTER = "rebase_on_next_counter";
     private static final String KEY_STEPS = "steps";
     private static final String HISTORY_PREFIX = "history_";
     // Estimated walking stride for a 6'9" person: 0.415 x height, about 1,885 steps/mile.
@@ -39,6 +41,10 @@ final class StepStore {
 
     static void setTracking(Context context, boolean tracking) {
         prefs(context).edit().putBoolean(KEY_TRACKING, tracking).apply();
+    }
+
+    static void markCounterMayHaveReset(Context context) {
+        prefs(context).edit().putBoolean(KEY_REBASE_ON_NEXT_COUNTER, true).apply();
     }
 
     static int stepsToday(Context context) {
@@ -89,9 +95,17 @@ final class StepStore {
     static void resetToday(Context context) {
         SharedPreferences p = prefs(context);
         String today = today();
+        float baseline = p.getFloat(KEY_BASELINE, -1f);
+        int recordedSteps = p.getInt(KEY_STEPS, 0);
+        float lastCounter = p.getFloat(KEY_LAST_COUNTER, -1f);
+        // The counter normally equals baseline plus today's recorded steps. Prefer
+        // the actual last reading when it is available so a manual reset cannot
+        // replay an old hardware total into the new day.
+        float nextBaseline = lastCounter >= 0f ? lastCounter : baseline + recordedSteps;
         p.edit()
             .putString(KEY_DAY, today)
-            .putFloat(KEY_BASELINE, p.getFloat(KEY_BASELINE, -1f) + p.getInt(KEY_STEPS, 0))
+            .putFloat(KEY_BASELINE, nextBaseline)
+            .putFloat(KEY_LAST_COUNTER, nextBaseline)
             .putInt(KEY_STEPS, 0)
             .putInt(HISTORY_PREFIX + today, 0)
             .apply();
@@ -105,27 +119,47 @@ final class StepStore {
         if (!today.equals(storedDay)) {
             archiveStoredDay(p, storedDay);
             baseline = cumulativeSteps;
-            p.edit().putString(KEY_DAY, today).putFloat(KEY_BASELINE, baseline).putInt(KEY_STEPS, 0).apply();
+            p.edit()
+                .putString(KEY_DAY, today)
+                .putFloat(KEY_BASELINE, baseline)
+                .putFloat(KEY_LAST_COUNTER, cumulativeSteps)
+                .putInt(KEY_STEPS, 0)
+                .apply();
             return 0;
         }
 
         int recordedSteps = p.getInt(KEY_STEPS, 0);
+        float lastCounter = p.getFloat(KEY_LAST_COUNTER, -1f);
+        boolean rebasePending = p.getBoolean(KEY_REBASE_ON_NEXT_COUNTER, false);
         if (baseline < 0f) {
             // The first event after a day rollover establishes a fresh baseline.
             baseline = cumulativeSteps;
-            p.edit().putFloat(KEY_BASELINE, baseline).putInt(KEY_STEPS, 0).apply();
+            p.edit()
+                .putFloat(KEY_BASELINE, baseline)
+                .putFloat(KEY_LAST_COUNTER, cumulativeSteps)
+                .putInt(KEY_STEPS, 0)
+                .apply();
             return 0;
         }
 
-        if (cumulativeSteps < baseline) {
+        if (rebasePending || (lastCounter >= 0f && cumulativeSteps < lastCounter)) {
             // TYPE_STEP_COUNTER resets when Android restarts. Preserve the steps
-            // already recorded for this tracking day and offset the new counter
-            // so subsequent events continue from that total instead of erasing it.
+            // already recorded for this tracking day and rebase against the last
+            // observed hardware value. Comparing to the baseline is insufficient:
+            // a fresh counter can be above the original baseline but still far
+            // behind the pre-restart counter.
             baseline = cumulativeSteps - recordedSteps;
-            p.edit().putFloat(KEY_BASELINE, baseline).apply();
         }
-        int steps = Math.max(0, Math.round(cumulativeSteps - baseline));
-        p.edit().putInt(KEY_STEPS, steps).putInt(HISTORY_PREFIX + today, steps).apply();
+        int calculatedSteps = Math.max(0, Math.round(cumulativeSteps - baseline));
+        // Sensor callbacks must never decrease an already persisted daily total.
+        int steps = Math.max(recordedSteps, calculatedSteps);
+        p.edit()
+            .putFloat(KEY_BASELINE, baseline)
+            .putFloat(KEY_LAST_COUNTER, cumulativeSteps)
+            .putBoolean(KEY_REBASE_ON_NEXT_COUNTER, false)
+            .putInt(KEY_STEPS, steps)
+            .putInt(HISTORY_PREFIX + today, steps)
+            .apply();
         return steps;
     }
 
@@ -144,7 +178,13 @@ final class StepStore {
         String storedDay = p.getString(KEY_DAY, "");
         if (!today.equals(storedDay)) {
             archiveStoredDay(p, storedDay);
-            p.edit().putString(KEY_DAY, today).putFloat(KEY_BASELINE, -1f).putInt(KEY_STEPS, 0).apply();
+            p.edit()
+                .putString(KEY_DAY, today)
+                .putFloat(KEY_BASELINE, -1f)
+                .putFloat(KEY_LAST_COUNTER, -1f)
+                .putBoolean(KEY_REBASE_ON_NEXT_COUNTER, false)
+                .putInt(KEY_STEPS, 0)
+                .apply();
         }
     }
 
